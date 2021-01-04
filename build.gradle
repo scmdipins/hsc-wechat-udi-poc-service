@@ -1,0 +1,192 @@
+buildscript {
+	ext {
+		majorVersion = 0
+        minorVersion = 0
+		lombokVersion = "1.16.20"
+		junitVersion = "4.12"
+		springBootVersion = "2.1.4.RELEASE"
+	}
+	repositories {
+		maven { url 'http://pww.artifactory.cdi.philips.com/artifactory/gradle-dev' }
+		mavenLocal()
+	}
+	dependencies {
+        classpath("gradle.plugin.com.dorongold.plugins:task-tree:1.3")
+        classpath "org.springframework.boot:spring-boot-gradle-plugin:${springBootVersion}"
+        classpath "org.jfrog.buildinfo:build-info-extractor-gradle:4.7.0"
+        classpath "org.sonarsource.scanner.gradle:sonarqube-gradle-plugin:2.7"
+    }
+}
+
+//apply plugin: "com.dorongold.task-tree" version "1.3.1"
+apply plugin: "java"
+apply plugin: "eclipse"
+apply plugin: "org.springframework.boot"
+apply plugin: "io.spring.dependency-management"
+apply plugin: "org.sonarqube"
+apply plugin: "jacoco"
+apply plugin: "maven-publish"
+apply plugin: "com.jfrog.artifactory"
+
+group = 'com.philips.hsc'
+
+// component_verison will be passed from CI job
+if (project.hasProperty('component_version') && component_version) {
+    version = component_version
+} else {
+    version = genVersionName()
+}
+
+sourceCompatibility = '1.8'
+
+compileJava.options.encoding = "UTF-8"
+compileTestJava.options.encoding = "UTF-8"
+
+
+repositories {
+	maven { url 'http://pww.artifactory.cdi.philips.com/artifactory/gradle-dev' }
+	mavenLocal()
+}
+
+sonarqube {
+	properties {
+		// Refer to https://docs.sonarqube.org/display/SCAN/Analyzing+with+SonarQube+Scanner+for+Gradle for detail explain
+		property "sonar.projectKey", "${project.group}:${project.name}"
+		property "sonar.projectName", "${project.name}"
+		property "sonar.projectVersion", "${project.version}"
+		property "sonar.projectBaseDir", "${project.projectDir}"
+		property "sonar.working.directory", "${project.buildDir}/sonar"
+		property "sonar.coverage.exclusions", "**/java/common/**,**/java/dao/**,**/java/exception/**,**/java/model/**"
+
+		// Additional for java projects
+		//
+		property "sonar.sourceEncoding", "${project.compileJava.options.encoding}"
+		property "sonar.java.source", "${project.sourceCompatibility}"
+		property "sonar.java.target", "${project.targetCompatibility}"
+        property "sonar.cpd.java.minimumtokens", "25"
+        property "sonar.cpd.java.minimumLines", "2"
+
+		// Additional when JaCoCo plugin is applied
+		property "sonar.jacoco.reportPaths", "${project.buildDir}/jacocoReport/jacocoTest.exec"
+
+		// Additional when Junit plugin is applied
+		property "sonar.junit.reportPaths", "${project.buildDir}/test-results/test"
+	}
+}
+
+// Set jacoco report path
+//
+jacoco {
+	toolVersion = "0.8.3"
+	reportsDir = file("${project.buildDir}/jacocoReport")
+}
+
+// Detailed jacoco test report configuration
+//
+jacocoTestReport {
+	reports {
+		xml.enabled true
+		html.enabled true
+		xml.destination file("${project.buildDir}/jacocoReport/jacocoXMLReport.xml")
+		html.destination file("${project.buildDir}/jacocoReport/html")
+	}
+
+    def fileFilter = ['**/R.class', '**/R$*.class', '**/BuildConfig.*', '**/Manifest*.*', '**/*Test*.*', 'android/**/*.*']
+    def debugTree = fileTree(dir: "${project.buildDir}/classes", excludes: fileFilter)
+    def mainSrc = "${project.projectDir}/src/main/java"
+    sourceDirectories.setFrom(files([mainSrc])) // Source sets that coverage should be reported for.
+    classDirectories.setFrom(files([debugTree])) // Source sets that coverage should be reported for.
+    executionData.setFrom(fileTree(dir: "$buildDir", includes: [
+            "jacocoReport/jacocoTest.exec",
+            "outputs/code-coverage/connected/*coverage.ec"
+    ]))
+
+}
+
+// Set jacoco unit test coverage file
+//
+test {
+    jacoco {
+        enabled = true
+        destinationFile = file("${project.buildDir}/jacocoReport/jacocoTest.exec")
+        classDumpDir = file("${project.buildDir}/jacocoReport/classpathdumps")
+    }
+}
+
+// Open java compile warning
+//
+tasks.withType(JavaCompile) {
+    options.compilerArgs << "-Xlint:all"
+}
+
+dependencies {
+	compile "org.projectlombok:lombok:${lombokVersion}"
+	compile "org.springframework.boot:spring-boot-starter-actuator"
+	compile "io.micrometer:micrometer-registry-prometheus"
+	compile "org.springframework.boot:spring-boot-starter-cache"
+	compile "org.springframework.boot:spring-boot-starter-web"
+	compile "org.apache.commons:commons-lang3:3.7"
+	compile "com.fasterxml.jackson.core:jackson-databind:2.9.8"
+	compile "commons-io:commons-io:2.1"
+	testCompile "junit:junit:${junitVersion}"
+	testCompile "org.springframework.boot:spring-boot-starter-test"
+	testCompile group: 'org.mockito', name: 'mockito-core', version: '2.25.0'
+	compile group: 'net.logstash.logback', name: 'logstash-logback-encoder', version: '5.3'
+}
+
+// This section is used by CI job to publish artifact to Artifactory
+if (project.hasProperty('artifactory_deploy_repo') && artifactory_deploy_repo) {
+    publishing {
+        publications {
+            mavenJava(MavenPublication) {
+                from components.java
+            }
+        }
+    }
+
+    // Configuration - plugin 'com.jfrog.artifactory'
+    if (!project.hasProperty('build_name') || !build_name) {
+        project.ext.build_name = project.name
+    }
+
+    artifactory {
+        contextUrl = "${artifactory_contextUrl}"
+        //The base Artifactory URL if not overridden by the publisher/resolver
+        publish {
+            repository {
+                repoKey = "${artifactory_deploy_repo}"
+                username = "${artifactory_deploy_user}"
+                password = "${artifactory_deploy_password}"
+                maven = true
+            }
+            defaults {
+                publications('mavenJava')
+                properties = ['q.os': 'ubuntu']
+                publishBuildInfo = true   //Publish build-info to Artifactory (true by default)
+                publishArtifacts = true   //Publish artifacts to Artifactory (true by default)
+                publishPom = true   //Publish generated POM files to Artifactory (true by default).
+            }
+        }
+        // Redefine basic properties of the build info object
+        clientConfig.info.setBuildName(build_name)
+        clientConfig.info.setBuildNumber(project.version)
+        clientConfig.timeout = 600 // Artifactory connection timeout (in seconds). The default timeout is 300 seconds.
+    }
+
+    artifactoryPublish.dependsOn build
+}
+
+bootJar {
+    manifest {
+        attributes 'Main-Class': 'org.springframework.boot.loader.PropertiesLauncher'
+        attributes 'Start-Class': 'com.philips.hsc.Application'
+        attributes 'Loader-Path': 'jar'
+    }
+}
+
+def genVersionName() {
+    int revisionCode = "git rev-list HEAD --count".execute(null, projectDir).getText().trim().toInteger()
+    String gitTag = "git describe --always".execute().getText().trim()
+    String revisionName = (gitTag == null || (gitTag).size() == 0) ? new Date().format("yyMMdd") : (gitTag).substring((gitTag).size() - 6)
+    majorVersion + "." + minorVersion + "." + revisionCode
+}

@@ -1,0 +1,237 @@
+# Default values for Helm chart.
+# This is a YAML-formatted file.
+# Declare variables to be passed into your templates.
+
+## Deployment or StatefulSet
+kind: Deployment
+
+# Labels to add to the deployment metadata
+deploymentLabels: {}
+
+## Annotations to be added to the deployment
+deploymentAnnotations: {}
+
+replicaCount: 1
+
+## Set up update strategy for app installation. Set to Recreate if you use persistent
+## volume that cannot be mounted by more than one pods to makesure the pods is destroyed first.
+## ref: https://kubernetes.io/docs/concepts/workloads/controllers/deployment/#strategy
+## Example:
+## updateStrategy:
+##   type: RollingUpdate
+##   rollingUpdate:
+##     maxSurge: 25%
+##     maxUnavailable: 25%
+updateStrategy:
+  type: RollingUpdate
+
+# Labels to add to the pod container metadata
+podLabels: {}
+
+## Pod annotations
+## ref: https://kubernetes.io/docs/concepts/overview/working-with-objects/annotations/
+podAnnotations: {}
+
+## Node labels for pod assignment. Evaluated as a template.
+## ref: https://kubernetes.io/docs/user-guide/node-selection/
+nodeSelector: {}
+
+## Tolerations for pod assignment. Evaluated as a template.
+## ref: https://kubernetes.io/docs/concepts/configuration/taint-and-toleration/
+tolerations: []
+
+## Affinity for pod assignment
+## Ref: https://kubernetes.io/docs/concepts/configuration/assign-pod-node/#affinity-and-anti-affinity
+affinity: {}
+
+## Optionally specify an array of imagePullSecrets.
+## Secrets must be manually created in the namespace.
+## ref: https://kubernetes.io/docs/tasks/configure-pod-container/pull-image-private-registry/
+# imagePullSecrets:
+#   - myRegistryKeySecretName
+
+## K8s Security Context for app pods
+## https://kubernetes.io/docs/tasks/configure-pod-container/security-context/
+podSecurityContext: {}
+
+## Assign a PriorityClassName to pods if set
+priorityClassName: ""
+
+## Use an alternate scheduler, e.g. "stork".
+## ref: https://kubernetes.io/docs/tasks/administer-cluster/configure-multiple-schedulers/
+schedulerName: ""
+
+## Containers, which are run before the app containers are started.
+extraInitContainers: []
+
+image:
+  repository: busybox
+  tag: 1.32.0
+  ## Defaults to 'Always' if image tag is 'latest', else set to 'IfNotPresent'
+  ## ref: http://kubernetes.io/docs/user-guide/images/#pre-pulling-images
+  pullPolicy: IfNotPresent
+
+## K8s Security Context for app containers
+## https://kubernetes.io/docs/tasks/configure-pod-container/security-context/
+securityContext: {}
+
+## Container environment variables
+env: []
+
+## Liveness and readiness probe values
+## Ref: https://kubernetes.io/docs/concepts/workloads/pods/pod-lifecycle/#container-probes
+readinessProbe: {}
+  # httpGet:
+  #   path: /actuator/health/readiness
+  #   port: readiness-port
+  # initialDelaySeconds: 30
+  # timeoutSeconds: 30
+  # periodSeconds: 5
+  # failureThreshold: 3
+  # successThreshold: 1
+
+livenessProbe: {}
+  # httpGet:
+  #   path: /actuator/health/liveness
+  #   port: liveness-port
+  # initialDelaySeconds: 30
+  # timeoutSeconds: 30
+  # periodSeconds: 15
+  # failureThreshold: 3
+  # successThreshold: 1
+
+## Resource requests and limits
+## Ref: http://kubernetes.io/docs/user-guide/compute-resources/
+resources: {}
+  # requests:
+  #   cpu: 100m
+  #   memory: 128Mi
+  # limits:
+  #   cpu: 500m
+  #   memory: 512Mi
+
+## Set container time zone
+# timeZone: Asia/Shanghai
+
+## Additional volume mounts
+## Example: Mount CA file
+## extraVolumeMounts:
+##   - name: ca-cert
+##     subPath: ca_cert
+##     mountPath: /path/to/ca_cert
+extraVolumeMounts: []
+
+## Additional volumes
+## Example: Add secret volume
+## extraVolumes:
+##   - name: ca-cert
+##     secret:
+##       secretName: ca-cert
+##       items:
+##         - key: ca-cert
+##           path: ca_cert
+extraVolumes: []
+
+## Enable persistence using Persistent Volume Claims
+## ref: http://kubernetes.io/docs/user-guide/persistent-volumes/
+persistence:
+  enabled: false
+  ## If defined, PVC must be created manually before volume will be bound
+  # existingClaim: your-claim
+  annotations: {}
+  # ReadWriteOnce, ReadOnlyMany or ReadWriteMany
+  accessMode: ReadWriteOnce
+  size: 8Gi
+  ## If defined, storageClassName: <storageClass>
+  ## If set to "-", storageClassName: "", which disables dynamic provisioning
+  ## If undefined (the default) or set to null, no storageClassName spec is
+  ##   set, choosing the default provisioner.  (gp2 on AWS, standard on
+  ##   GKE, AWS & OpenStack)
+  # storageClass: "-"
+  volumeMounts: []
+    # - mountPath: /site/dir1
+    #   subPath: dir1
+    # - mountPath: /site/dir1
+    #   subPath: dir2
+  volumePermission:
+    ## If false, data ownership will not be reset at startup
+    ## This allows the app to be run with an arbitrary user
+    enabled: false
+    runAsUser: 1001
+    fsGroup: 1001
+    ## volumePermission container image
+    image:
+      repository: busybox
+      tag: "1.31.1"
+      pullPolicy: IfNotPresent
+    ## volumePermission resource requests and limits
+    resources: {}
+
+## Expose the service to be accessed from outside the cluster (LoadBalancer service).
+## or access it from within the cluster (ClusterIP service). Set the service type to serve it.
+## ref: http://kubernetes.io/docs/user-guide/services/
+service:
+  type: ClusterIP
+  port: 80
+  targetPort: 80
+  ## Extra ports to expose
+  extraPorts: []
+    # - name: watch
+    #   port: 9000
+    #   protocol: TCP
+  # clusterIP: ""
+  # nodePort: ""
+  # loadBalancerIP: ""
+  # loadBalancerSourceRanges: []
+  # externalIPs: []
+  labels: {}
+  annotations: {}
+  headless:
+    labels: {}
+    annotations: {}
+
+## Pods Service Account
+## ref: https://kubernetes.io/docs/tasks/configure-pod-container/configure-service-account/
+serviceAccount:
+  ## Specifies whether a ServiceAccount should be created
+  create: false
+  ## The name of the ServiceAccount to use.
+  ## If not set and create is true, a name is generated using the fullname template
+  # name: ""
+  annotations: {}
+
+autoscaling:
+  enabled: false
+  minReplicas: 1
+  maxReplicas: 10
+  targetCPUUtilizationPercentage: 60
+  targetMemoryUtilizationPercentage: 60
+  extraMetrics: {}
+
+## Configure the ingress resource that allows you to access the app installation.
+## Set up the URL
+## ref: http://kubernetes.io/docs/user-guide/ingress/
+ingress:
+  ## Set to true to enable ingress record generation
+  enabled: false
+  labels: {}
+  ## Ingress annotations done as key:value pairs
+  ## For a full list of possible ingress annotations, please see
+  ## ref: https://github.com/kubernetes/ingress-nginx/blob/master/docs/user-guide/nginx-configuration/annotations.md
+  annotations: {}
+    # kubernetes.io/ingress.class: nginx
+    # kubernetes.io/tls-acme: "true"
+  ## The tls configuration for hosts to be covered with this ingress record.
+  ## see: https://kubernetes.io/docs/concepts/services-networking/ingress/#tls
+  tls: []
+    # - secretName: chart-example-tls
+    #   hosts:
+    #     - chart-example.local
+  hosts: []
+    # - chart-example.local
+  path: /
+  extraPaths: []
+    # - path: /*
+    #   backend:
+    #     serviceName: ssl-redirect
+    #     servicePort: use-annotation

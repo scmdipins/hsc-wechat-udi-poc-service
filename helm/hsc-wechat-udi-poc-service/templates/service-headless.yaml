@@ -1,0 +1,32 @@
+{{- if (eq .Values.kind "StatefulSet") -}}
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ template "app.fullname" . }}-headless
+  labels:
+    {{- include "app.labels" . | nindent 4 }}
+  {{- with .Values.service.headless.labels }}
+    {{- toYaml . | nindent 4 }}
+  {{- end }}
+{{- with .Values.service.headless.annotations }}
+  annotations:
+    {{- toYaml . | nindent 4 }}
+{{- end }}
+spec:
+  type: ClusterIP
+  clusterIP: None
+  ports:
+    - name: http
+      port: {{ .Values.service.port }}
+      targetPort: {{ .Values.service.targetPort }}
+      protocol: TCP
+  {{- range .Values.service.extraPorts }}
+    - name: {{ .name }}
+      port: {{ .port }}
+      targetPort: {{ .port }}
+      protocol: {{ .protocol }}
+  {{- end }}
+  selector:
+    app.kubernetes.io/name: {{ include "app.name" . }}
+    app.kubernetes.io/instance: {{ .Release.Name }}
+{{- end -}}

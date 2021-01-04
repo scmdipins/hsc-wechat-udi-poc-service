@@ -1,0 +1,155 @@
+{{- if (eq .Values.kind "Deployment") -}}
+apiVersion: {{ template "deployment.apiVersion" . }}
+kind: Deployment
+metadata:
+  name: {{ template "app.fullname" . }}
+  labels:
+    {{- include "app.labels" . | nindent 4 }}
+  {{- with .Values.deploymentLabels }}
+    {{- toYaml . | nindent 4 }}
+  {{- end }}
+{{- with .Values.deploymentAnnotations }}
+  annotations:
+    {{- toYaml . | nindent 4 }}
+{{- end }}
+spec:
+  replicas: {{ .Values.replicaCount }}
+{{- with .Values.updateStrategy }}
+  strategy:
+    {{- toYaml . | nindent 4 }}
+{{- end }}
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: {{ template "app.name" . }}
+      app.kubernetes.io/instance: {{ .Release.Name }}
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: {{ template "app.name" . }}
+        app.kubernetes.io/instance: {{ .Release.Name }}
+        {{- with .Values.podLabels }}
+          {{- toYaml . | nindent 8 }}
+        {{- end }}
+    {{- with .Values.podAnnotations }}
+      annotations:
+        {{- toYaml . | nindent 8 }}
+    {{- end }}
+    spec:
+    {{- with .Values.nodeSelector }}
+      nodeSelector:
+        {{- toYaml . | nindent 8 }}
+    {{- end }}
+    {{- with .Values.tolerations }}
+      tolerations:
+        {{- toYaml . | nindent 8 }}
+    {{- end }}
+    {{- with .Values.affinity }}
+      affinity:
+        {{- toYaml . | nindent 8 }}
+    {{- end }}
+    {{- with .Values.imagePullSecrets }}
+      imagePullSecrets:
+        {{- toYaml . | nindent 8 }}
+    {{- end }}
+    {{- with .Values.podSecurityContext }}
+      securityContext:
+        {{- toYaml . | nindent 8 }}
+    {{- end }}
+    {{- with .Values.priorityClassName }}
+      priorityClassName: {{ . }}
+    {{- end }}
+    {{- if .Values.schedulerName }}
+      schedulerName: {{ . }}
+    {{- end }}
+      serviceAccountName: {{ template "app.serviceAccountName" . }}
+    {{- if (or (and .Values.persistence.enabled .Values.persistence.volumePermission.enabled) .Values.extraInitContainers) }}
+      initContainers:
+        - name: volume-permission
+          image: "{{ .Values.persistence.volumePermission.image.repository }}:{{ .Values.persistence.volumePermission.image.tag }}"
+          imagePullPolicy: {{ .Values.persistence.volumePermission.image.pullPolicy }}
+          command: ["chown", "-R", "{{ .Values.persistence.volumePermission.runAsUser }}:{{ .Values.persistence.volumePermission.fsGroup }}", "/data"]
+          securityContext:
+            runAsUser: 0
+        {{- with .Values.persistence.volumePermission.resources }}
+          resources: 
+            {{- toYaml . | nindent 12 }}
+        {{- end }}
+          volumeMounts:
+            - name: data
+              mountPath: /data
+      {{- with .Values.extraInitContainers }}
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+    {{- end }}
+      containers:
+        - name: {{ .Chart.Name }}
+          image: "{{ .Values.image.repository }}:{{ .Values.image.tag }}"
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+        {{- with .Values.securityContext }}
+          securityContext:
+            {{- toYaml . | nindent 12 }}
+        {{- end -}}
+        {{- with .Values.env }}
+          env:
+            {{- toYaml . | nindent 12 }}
+        {{- end }}
+          ports:
+            - name: http
+              containerPort: {{ .Values.service.targetPort }}
+              protocol: TCP
+          {{- range .Values.service.extraPorts }}
+            - name: {{ .name }}
+              containerPort: {{ .port }}
+              protocol: {{ .protocol }}
+          {{- end }}
+        {{- with .Values.readinessProbe }}
+          readinessProbe:
+            {{- toYaml . | nindent 12 }}
+        {{- end }}
+        {{- with .Values.livenessProbe }}
+          livenessProbe:
+            {{- toYaml . | nindent 12 }}
+        {{- end }}
+        {{- with .Values.resources }}
+          resources:
+            {{- toYaml . | nindent 12 }}
+        {{- end }}
+        {{- if (or .Values.timeZone .Values.persistence.enabled .Values.extraVolumeMounts) }}
+          volumeMounts:
+          {{- if .Values.timeZone }}
+            - name: tz-config
+              mountPath: /etc/localtime
+          {{- end }}
+          {{- if and .Values.persistence.enabled .Values.persistence.volumeMounts }}
+          {{- range .Values.persistence.volumeMounts }}
+            - mountPath: {{ .mountPath }}
+              name: data
+            {{- if .subPath }}
+              subPath: {{ .subPath }}
+            {{- end }}
+          {{- end }}
+          {{- else if .Values.persistence.enabled }}
+            - mountPath: /data
+              name: data
+          {{- end }}
+          {{- with .Values.extraVolumeMounts }}
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+        {{- end }}
+    {{- if (or .Values.timeZone .Values.persistence.enabled .Values.extraVolumes) }}
+      volumes:
+      {{- if .Values.timeZone }}
+        - name: tz-config
+          hostPath:
+            path: /usr/share/zoneinfo/{{ .Values.timeZone }}
+      {{- end }}
+      {{- if .Values.persistence.enabled }}
+        - name: data
+          persistentVolumeClaim:
+            claimName: {{ .Values.persistence.existingClaim | default (include "app.fullname" .) }}
+      {{- end }}
+      {{- with .Values.extraVolumes }}
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+    {{- end }}
+{{- end -}}
