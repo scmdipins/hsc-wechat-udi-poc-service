@@ -27,4 +27,4 @@ ingress:
   enabled: true
   annotations:
     nginx.ingress.kubernetes.io/rewrite-target: /
-  path: /hsc-scaffold-micro-java
+  path: /udi/poc
