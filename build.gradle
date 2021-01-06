@@ -125,6 +125,7 @@ dependencies {
 	compile "io.micrometer:micrometer-registry-prometheus"
 	compile "org.springframework.boot:spring-boot-starter-cache"
 	compile "org.springframework.boot:spring-boot-starter-web"
+	compile "org.springframework.boot:spring-boot-starter-thymeleaf"
 	compile "org.apache.commons:commons-lang3:3.7"
 	compile "com.fasterxml.jackson.core:jackson-databind:2.9.8"
 	compile "commons-io:commons-io:2.1"
